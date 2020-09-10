@@ -16,9 +16,12 @@
 
 #pragma once
 
-#include <memory>
+#define LOG_TAG "vendor.qti.hardware.cryptfshw@1.0-service-dlsym-qti"
 
-#include <ICryptfsHwController.h>
+#include <android-base/logging.h>
+
+#include <hidl/MQDescriptor.h>
+#include <hidl/Status.h>
 #include <vendor/qti/hardware/cryptfshw/1.0/ICryptfsHw.h>
 
 namespace vendor {
@@ -26,14 +29,31 @@ namespace qti {
 namespace hardware {
 namespace cryptfshw {
 namespace V1_0 {
-namespace implementation {
+namespace dlsym_qti {
 
 using ::android::hardware::hidl_string;
 using ::android::hardware::Return;
 
+// Number of times to check for qseecomd being up
+#define CRYPTFS_HW_UP_CHECK_COUNT 10
+
+// All error codes we return
+#define CRYPTFS_HW_CREATE_KEY_FAILED -7
+#define CRYPTFS_HW_WIPE_KEY_FAILED -8
+#define CRYPTFS_HW_UPDATE_KEY_FAILED -9
+
+// Usage constants for the backend based on the device's storage type
+enum cryptfs_hw_key_management_usage_type {
+    CRYPTFS_HW_KM_USAGE_DISK_ENCRYPTION = 0x01,
+    CRYPTFS_HW_KM_USAGE_FILE_ENCRYPTION = 0x02,
+    CRYPTFS_HW_KM_USAGE_UFS_ICE_DISK_ENCRYPTION = 0x03,
+    CRYPTFS_HW_KM_USAGE_SDCC_ICE_DISK_ENCRYPTION = 0x04,
+    CRYPTFS_HW_KM_USAGE_MAX
+};
+
 class CryptfsHw : public ICryptfsHw {
-  public:
-    CryptfsHw(std::unique_ptr<ICryptfsHwController> controller);
+   public:
+    CryptfsHw(void* libHandle);
 
     // Methods from ::vendor::qti::hardware::cryptfshw::V1_0::ICryptfsHw follow.
     Return<int32_t> setIceParam(uint32_t flag) override;
@@ -42,14 +62,16 @@ class CryptfsHw : public ICryptfsHw {
                               const hidl_string& enc_mode) override;
     Return<int32_t> clearKey() override;
 
-  private:
-    std::unique_ptr<ICryptfsHwController> controller_;
-    int storage_type_ = 0;
+   private:
+    void* mLibHandle;
+    qseecom_key_management_usage_type mKeyManagementUsage;
 
-    DISALLOW_IMPLICIT_CONSTRUCTORS(CryptfsHw);
+    int (*qseecom_create_key)(int, void*);
+    int (*qseecom_update_key)(int, void*, void*);
+    int (*qseecom_wipe_key)(int);
 };
 
-}  // namespace implementation
+}  // namespace dlsym_qti
 }  // namespace V1_0
 }  // namespace cryptfshw
 }  // namespace hardware
